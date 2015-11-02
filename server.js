@@ -21,7 +21,7 @@ app.get('/todos', middleware.requireAuthentication, function(req, res) {
 	var query = req.query;
 	var where = {
 		userId: req.user.get('id')
-	};//add a clause for user id req.user.get id property
+	}; //add a clause for user id req.user.get id property
 
 	if (query.hasOwnProperty('completed') && query.completed === 'true') {
 		where.completed = true;
@@ -69,9 +69,9 @@ app.post('/todos', middleware.requireAuthentication, function(req, res) {
 	var body = _.pick(req.body, 'description', 'completed');
 
 	db.todo.create(body).then(function(todo) {
-		req.user.addTodo(todo).then(function () {
+		req.user.addTodo(todo).then(function() {
 			return todo.reload();
-		}).then(function(todo){
+		}).then(function(todo) {
 			res.json(todo.toJSON());
 		});
 	}, function(e) {
@@ -152,24 +152,37 @@ app.post('/users', function(req, res) {
 
 // POST /users/login
 
-app.post('/users/login', function (req, res) {
+app.post('/users/login', function(req, res) {
 	var body = _.pick(req.body, 'email', 'password');
+	var userInstance;
 
-	db.user.authenticate(body).then(function (user){
+	db.user.authenticate(body).then(function(user) {
 		var token = user.generateToken('authentication');
-		if (token){
-			res.header('Auth', token).json(user.toPublicJSON());
-		} else {
-			res.status(401).send();
-		}
-		
-	}, function () {
+		userInstance = user;
+
+		return db.token.create({
+			token: token
+		});
+	}).then(function(tokenInstance) {
+		res.header('Auth', tokenInstance.get('token')).json(userInstance.toPublicJSON());
+	}).catch(function() {
 		res.status(401).send();
 	});
 
 });
 
-db.sequelize.sync({force:true}).then(function() {
+// DELETE /users/login
+app.delete('/users/login', middleware.requireAuthentication, function(req, res) {
+	req.token.destroy().then(function() {
+		res.status(204).send();
+	}).catch(function() {
+		res.status(500).send();
+	});
+});
+
+db.sequelize.sync({
+	force: true
+}).then(function() {
 	app.listen(PORT, function() {
 		console.log("Express listening on port " + PORT);
 	});
